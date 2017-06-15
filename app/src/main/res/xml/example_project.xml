@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project>
+    <EngineeringOBject name="E001" type="type01">
+        <EngineeringOBject name="E002" type="type01">
+            <EngineeringOBject name="E004" type="type02" />
+        </EngineeringOBject>
+        <EngineeringOBject name="E005" type="type02" />
+    </EngineeringOBject>
+
+    <EngineeringOBject name="E003" type="type01">
+        <EngineeringOBject name="E006" type="type02">
+            <EngineeringOBject name="E008" type="type03" />
+        </EngineeringOBject>
+        <EngineeringOBject name="E007" type="type03">
+            <EngineeringOBject name="E009" type="type02" />
+        </EngineeringOBject>
+    </EngineeringOBject>
+</project>
