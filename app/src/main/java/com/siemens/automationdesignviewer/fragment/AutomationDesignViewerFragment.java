@@ -1,8 +1,12 @@
 package com.siemens.automationdesignviewer.fragment;
 
+import android.content.DialogInterface;
+import android.content.res.Resources;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v7.app.AlertDialog;
 import android.text.TextUtils;
 import android.util.Xml;
 import android.view.LayoutInflater;
@@ -11,7 +15,6 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
 import com.siemens.automationdesignviewer.R;
 import com.siemens.automationdesignviewer.holder.IconItemHolder;
@@ -25,7 +28,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -90,27 +92,25 @@ public class AutomationDesignViewerFragment extends Fragment {
 
 //        statusBar = rootView.findViewById(R.id.status_bar);
 
+        ProjectXmlParser projectXmlParser = new ProjectXmlParser();
         TreeNode root = TreeNode.root();
-        TreeNode computerRoot = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "My Computer"));
-
-        TreeNode myDocuments = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "My Documents"));
-        TreeNode downloads = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Downloads"));
-        TreeNode file1 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 1"));
-        TreeNode file2 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 2"));
-        TreeNode file3 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 3"));
-        TreeNode file4 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 4"));
-        downloads.addChildren(file1, file2, file3, file4);
-
-        TreeNode myMedia = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Photos"));
-        TreeNode photo1 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 1"));
-        TreeNode photo2 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 2"));
-        TreeNode photo3 = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work, "Folder 3"));
-        myMedia.addChildren(photo1, photo2, photo3);
-
-        myDocuments.addChild(downloads);
-        computerRoot.addChildren(myDocuments, myMedia);
-
-        root.addChildren(computerRoot);
+        try {
+            Resources resources = getResources();
+            InputStream stream = resources.openRawResource(R.raw.example_project);
+            ArrayList<EngineeringObject> eos = projectXmlParser.parse(stream);
+            for (EngineeringObject eo : eos) {
+                addEngineeringObject(root, eo);
+            }
+        }
+        catch (IOException e) {
+            showMessage("IOException", e.getMessage());
+        }
+        catch (XmlPullParserException e) {
+            showMessage("XmlPullParserException", e.getMessage());
+        }
+        catch (Exception e) {
+            showMessage("Exception", e.getMessage());
+        }
 
         treeView = new AndroidTreeView(getActivity(), root);
         treeView.setDefaultAnimation(true);
@@ -127,6 +127,33 @@ public class AutomationDesignViewerFragment extends Fragment {
             }
         }
         return rootView;
+    }
+
+    private void addEngineeringObject(TreeNode parent, EngineeringObject eo) {
+        TreeNode eoNode = new TreeNode(new IconItemHolder.IconItem(R.string.ic_work,
+                String.format("%s (%s)", eo.getName(), eo.getType())));
+        for (EngineeringObject subChild : eo.getChildren().values()) {
+            addEngineeringObject(eoNode, subChild);
+        }
+        parent.addChild(eoNode);
+    }
+
+    private void showMessage(String title, String message) {
+        AlertDialog.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder = new AlertDialog.Builder(getContext(), android.R.style.Theme_Material_Dialog_Alert);
+        } else {
+            builder = new AlertDialog.Builder(getContext());
+        }
+        builder.setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // continue
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
     }
 
     @Override
@@ -159,34 +186,90 @@ public class AutomationDesignViewerFragment extends Fragment {
      * "http://developer.android.com/training/basics/fragments/communicating.html"
      * >Communicating with Other Fragments</a> for more information.
      */
-    public interface OnFragmentInteractionListener {
+    interface OnFragmentInteractionListener {
         // TODO: Update argument type and name
         void onFragmentInteraction(Uri uri);
     }
 }
 
-class ProjectXmlParser{
-    public List parse(InputStream in) throws XmlPullParserException, IOException {
+class ProjectXmlParser {
+    private static final String namespace = null;
+
+    ArrayList<EngineeringObject> parse(InputStream in) throws XmlPullParserException, IOException {
         try {
             XmlPullParser parser = Xml.newPullParser();
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
             parser.setInput(in, null);
+            parser.nextTag();
             return readProject(parser);
         } finally {
             in.close();
         }
     }
 
-    private List<EngineeringObject> readProject(XmlPullParser parser) throws XmlPullParserException, IOException {
-        return null;
+    private ArrayList<EngineeringObject> readProject(XmlPullParser parser) throws XmlPullParserException, IOException {
+        ArrayList<EngineeringObject> engineeringObjects = new ArrayList<>();
+
+        parser.require(XmlPullParser.START_TAG, namespace, "project");
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) {
+                continue;
+            }
+
+            String name = parser.getName();
+            if (name.equals("EngineeringOBject")) {
+                if (!engineeringObjects.add(readEngineeringObject(parser))) {
+                    //TODO: handle error adding to list
+                }
+            } else {
+                skip(parser);
+            }
+        }
+        return engineeringObjects;
+    }
+
+    private void skip(XmlPullParser parser) throws IOException, XmlPullParserException {
+        if (parser.getEventType() != XmlPullParser.START_TAG) {
+            throw new IllegalStateException();
+        }
+        int depth = 1;
+        while (depth != 0) {
+            switch (parser.next()) {
+                case XmlPullParser.END_TAG:
+                    depth--;
+                    break;
+                case XmlPullParser.START_TAG:
+                    depth++;
+                    break;
+            }
+        }
+    }
+
+    private EngineeringObject readEngineeringObject(XmlPullParser parser) throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, namespace, "EngineeringOBject");
+        String name = parser.getAttributeValue(null, "name");
+        String type = parser.getAttributeValue(null, "type");
+        EngineeringObject eo = new EngineeringObject(name, type);
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) {
+                continue;
+            }
+            String tag = parser.getName();
+            if (tag.equals("EngineeringOBject")) {
+                eo.addChild(readEngineeringObject(parser));
+            } else {
+                skip(parser);
+            }
+        }
+        return eo;
     }
 }
 
 class EngineeringObject {
     private String name;
     private String type;
-    private ArrayList<String> names = new ArrayList();
-    private HashMap<String, EngineeringObject> children = new HashMap();
+    private ArrayList<String> names = new ArrayList<>();
+    private HashMap<String, EngineeringObject> children = new HashMap<>();
 
     EngineeringObject(String name, String type) {
         this.name = name;
@@ -201,7 +284,7 @@ class EngineeringObject {
         return type;
     }
 
-    public void addChild(EngineeringObject child) {
+    void addChild(EngineeringObject child) {
         children.put(child.getName(), child);
         if (!names.add(child.getName())) {
             //TODO: handles error
@@ -212,7 +295,7 @@ class EngineeringObject {
         return children.get(names.get(index));
     }
 
-    public Map<String, EngineeringObject> getChildren() {
+    Map<String, EngineeringObject> getChildren() {
         return children;
     }
 }

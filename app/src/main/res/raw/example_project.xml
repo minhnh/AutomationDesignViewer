@@ -2,7 +2,9 @@
 <project>
     <EngineeringOBject name="E001" type="type01">
         <EngineeringOBject name="E002" type="type01">
-            <EngineeringOBject name="E004" type="type02" />
+            <EngineeringOBject name="E004" type="type02">
+                <EngineeringOBject name="E010" type="type02" />
+            </EngineeringOBject>
         </EngineeringOBject>
         <EngineeringOBject name="E005" type="type02" />
     </EngineeringOBject>
